@@ -1,6 +1,6 @@
 --[[
 
-fail <ns> , <jobid> <datetime> <wait_base> <wait_exp>
+fail <ns> , <jobid> <datetime> <dtreschedule>
 
 Keys:
     ns: Namespace under which queue data exists.
@@ -35,16 +35,13 @@ end
 local ns = KEYS[1]
 local jobid = ARGV[1]
 local dtutcnow = tonumber(ARGV[2])
-local wait_base = tonumber(ARGV[3])
-local wait_exp = tonumber(ARGV[4])
-if wait_base == nil then wait_base = 3600 end
-if wait_exp == nil then wait_exp = 2 end
+local dtreschedule = tonumber(ARGV[3])
 
 local kworking   = ns .. sep .. "WORKING"   -- Jobs that have been consumed
 local kworkers   = ns .. sep .. "WORKERS"   -- Worker IDs
 local kfailed    = ns .. sep .. "FAILED"    -- Failed Queue
-local kfailed    = ns .. sep .. "SCHEDULED" -- Scheduled Queue
-local kmaxjobs   = ns .. sep .. "MAXJOBS"   -- Max number of jobs allowed
+local kscheduled = ns .. sep .. "SCHEDULED" -- Scheduled Queue
+-- local kmaxjobs   = ns .. sep .. "MAXJOBS"   -- Max number of jobs allowed
 local kmaxfailed = ns .. sep .. "MAXFAILED" -- Max number of failures allowed
 
 local kjob = ns .. sep .. "JOBS" .. sep .. jobid
@@ -85,9 +82,10 @@ else
     -- ######################
     -- Move to SCHEDULED queue, keep Job data
     -- ######################
-    -- Backoff Sequence
-    local nexttime = dtutcnow + (wait_base * (failures^wait_exp))
-    result = redis.pcall("ZADD", kscheduled, nexttime, jobid);
+    if dtreschedule == nil then
+        return redis.error_reply("INVALID_DATETIME")
+    end
+    result = redis.pcall("ZADD", kscheduled, dtreschedule, jobid);
 end
 
 -- ######################
