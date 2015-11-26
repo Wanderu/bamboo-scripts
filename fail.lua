@@ -1,22 +1,21 @@
 --[[
 
-fail <ns> , <jobid> <datetime> <dtreschedule>
+fail <ns> , <jobid> <datetime> <requeue_seconds>
 
 Keys:
     ns: Namespace under which queue data exists.
 
 Args:
     jobid: Job identifier.
-    datetime: Current datetime as Unix UTC seconds since epoch. Required to be
-            passed in due to limitations of Lua engine inside Redis.
-    wait_base, wait_exp: Requeue priority (SCHEDULED queue) will be equal to
-    datetime + (wait_base * failures^wait_exp)
+    datetime: Current datetime (Unix seconds since epoch)
+    requeue_seconds: Seconds until requeue.
 
 Returns: 1 if failed correctly.
 Errors: UNKNOWN_JOB_ID
 
 --]]
 
+-- ########### PRE
 local fname = "fail"
 local sep = ":"
 
@@ -31,17 +30,25 @@ end
 local is_error = function(result)
     return type(result) == 'table' and result.err
 end
+-- ########### END PRE
 
 local ns = KEYS[1]
 local jobid = ARGV[1]
 local dtutcnow = tonumber(ARGV[2])
-local dtreschedule = tonumber(ARGV[3])
+if dtuctnow == nil then
+    return redis.error_reply("INVALID_PARAMETER: datetime")
+end
+local requeue_seconds = tonumber(ARGV[3])
+if requeue_seconds == nil then
+    return redis.error_reply("INVALID_PARAMETER: requeue_seconds")
+end
+
+local dtreschedule = dtutcnow + requeue_seconds
 
 local kworking   = ns .. sep .. "WORKING"   -- Jobs that have been consumed
 local kworkers   = ns .. sep .. "WORKERS"   -- Worker IDs
 local kfailed    = ns .. sep .. "FAILED"    -- Failed Queue
 local kscheduled = ns .. sep .. "SCHEDULED" -- Scheduled Queue
--- local kmaxjobs   = ns .. sep .. "MAXJOBS"   -- Max number of jobs allowed
 local kmaxfailed = ns .. sep .. "MAXFAILED" -- Max number of failures allowed
 
 local kjob = ns .. sep .. "JOBS" .. sep .. jobid
@@ -50,7 +57,8 @@ local result
 result = redis.pcall("ZSCORE", kworking, jobid)
 if result == nil or is_error(result) then
     log_warn("Provided job not found. Job ID: " .. jobid .. "Queue: " .. kworking)
-    return redis.error_reply("UNKNOWN_JOB_ID" .. " Job not found in queue." .. kworking)
+    return redis.error_reply("UNKNOWN_JOB_ID: " ..
+                             "Job not found in queue." .. kworking)
 end
 
 -- ######################
@@ -82,9 +90,6 @@ else
     -- ######################
     -- Move to SCHEDULED queue, keep Job data
     -- ######################
-    if dtreschedule == nil then
-        return redis.error_reply("INVALID_DATETIME")
-    end
     result = redis.pcall("ZADD", kscheduled, dtreschedule, jobid);
 end
 

@@ -1,13 +1,11 @@
 --[[
 
-consume <ns> , <client_name> <datetime> <jobid> <expires>
+consume <ns> , <client_name> <jobid> <expires>
 
 Keys: <ns>
     ns: Namespace under which queue data exists.
-Args: <client_name> <datetime> <jobid> <expires>
+Args: <client_name> <jobid> <expires>
     client_name: The name/id of the worker.
-    datetime: Current datetime as Unix UTC seconds since epoch. Required to be
-            passed in due to limitations of Lua engine inside Redis.
     jobid: The Job ID to consume. Optional. Defaults to "". If not specified
             the next highest priority job is consumed.
     expires: Seconds until Job expires and is candidate to go back on the queue.
@@ -44,10 +42,11 @@ local kmaxjobs = ns .. sep .. "MAXJOBS"  -- Max number of jobs allowed
 local kworkers = ns .. sep .. "WORKERS"  -- Worker IDs
 
 local client_name = ARGV[1]
-local dtutcnow    = tonumber(ARGV[2])
-local jobid      = ARGV[3]
-local expires     = tonumber(ARGV[4])
+local jobid      = ARGV[2]
+local expires     = tonumber(ARGV[3])
 if expires == "" or expires == nil then expires = 60 end
+
+local dtutcnow = tonumber(redis.call("TIME")[1]) -- Unix UTC Seconds
 
 local max_jobs = tonumber(redis.pcall("GET", kmaxjobs))
 local njobs = tonumber(redis.pcall("ZCARD", kworking))

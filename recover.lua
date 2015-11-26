@@ -1,7 +1,14 @@
---[[ recover <ns> ,
+--[[ recover <ns> , <requeue_seconds>
 
 Find any Jobs that have been abandoned.
 Clean extraneous worker entries.
+
+Keys:
+    ns: Namespace under which queue data exists.
+
+Args:
+    datetime: Current datetime (Unix seconds since epoch)
+    requeue_seconds: Seconds until requeue.
 
 for each worker in <ns>:WORKERS
     if the worker is no longer active
@@ -12,20 +19,9 @@ for each worker in <ns>:WORKERS
         remove <worker_name> from <ns>:WORKERS
 --]]
 
+-- ########### PRE
 local fname = "recover"
 local sep = ":"
-
-local ns = KEYS[1]
-
-local dtutcnow = tonumber(ARGV[2])
-local dtreschedule = tonumber(ARGV[3])
-
--- local kworking   = ns .. sep .. "WORKING"   -- Jobs that have been consumed
-local kworkers   = ns .. sep .. "WORKERS"   -- Worker IDs
--- local kfailed    = ns .. sep .. "FAILED"    -- Failed Queue
--- local kscheduled = ns .. sep .. "SCHEDULED" -- Scheduled Queue
--- local kmaxjobs   = ns .. sep .. "MAXJOBS"   -- Max number of jobs allowed
--- local kmaxfailed = ns .. sep .. "MAXFAILED" -- Max number of failures allowed
 
 local log_warn = function (message)
     redis.log(redis.LOG_WARNING, "<" .. fname .. ">" .. " " .. message)
@@ -56,6 +52,26 @@ local tab_as_array = function(tab)
     end
     return keys
 end
+-- ########### END PRE
+
+local ns = KEYS[1]
+local dtutcnow = tonumber(ARGV[1])
+if dtutcnow == nil then
+    return redis.error_reply("INVALID_PARAMETER: datetime")
+end
+local requeue_seconds = tonumber(ARGV[2])
+if requeue_seconds == nil then
+    return redis.error_reply("INVALID_PARAMETER: requeue_seconds")
+end
+
+local dtutcnow = tonumber(redis.call("TIME")[1]) -- Unix UTC Seconds
+local dtreschedule = dtutcnow + requeue_seconds
+
+local kworking   = ns .. sep .. "WORKING"   -- Jobs that have been consumed
+local kworkers   = ns .. sep .. "WORKERS"   -- Worker IDs
+local kfailed    = ns .. sep .. "FAILED"    -- Failed Queue
+local kscheduled = ns .. sep .. "SCHEDULED" -- Scheduled Queue
+local kmaxfailed = ns .. sep .. "MAXFAILED" -- Max number of failures allowed
 
 local abandoned = {}
 local kworker, kactive, worker, workers, jobid
@@ -86,8 +102,6 @@ end
 
 abandoned = tab_as_array(abandoned) -- convert to array (int indices)
 for i, jobid in ipairs(abandoned) do
-    -- redis.call("EVALSHA", fail_lua_sha, 1, ns, dtutcnow, dtreschedule)
-
     local result
     local kjob = ns .. sep .. "JOBS" .. sep .. jobid
 
@@ -122,9 +136,6 @@ for i, jobid in ipairs(abandoned) do
         -- ######################
         -- Move to SCHEDULED queue, keep Job data
         -- ######################
-        if dtreschedule == nil then
-            return redis.error_reply("INVALID_DATETIME")
-        end
         result = redis.pcall("ZADD", kscheduled, dtreschedule, jobid);
     end
 

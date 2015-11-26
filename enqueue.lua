@@ -30,28 +30,27 @@ end
 
 local ns = KEYS[1]
 
-local priority = tostring(ARGV[1])
-local ipriority = tonumber(ARGV[1])
-local jobid    = ARGV[2]
+local priority = tonumber(ARGV[1])
+local jobid = ARGV[2]
 
 -- Primary Job queue (ZSet)
 local kqueue  = ns .. sep .. "QUEUED"
+local kscheduled  = ns .. sep .. "SCHEDULED"
+local kworking   = ns .. sep .. "WORKING"  -- Jobs that have been consumed
 -- Key of the Job data (HMap)
 local kjob = ns .. sep .. "JOBS" .. sep .. jobid
 
 local msg, result;
-local argc = tonumber(table.getn(ARGV));
 
+-- ######################
 -- Make a table of all Job object parameters
-local job_data = {};
-local n = 0;
-for i = 3, argc do
-    table.insert(job_data, ARGV[i]);
+-- ######################
+local job_data = {}
+local n = 0
+for i = 3, tonumber(table.getn(ARGV)) do
+    table.insert(job_data, ARGV[i])
     n = n+1
 end
-
--- The number of key/value params
--- local n = tonumber(table.getn(job_data));
 
 if (n % 2 == 1) then
     msg = "Invalid number of job object parameters: " .. tostring(n)
@@ -59,27 +58,52 @@ if (n % 2 == 1) then
     return redis.error_reply("INVALID_PARAMETERS")
 end
 
-local current_score = tonumber(redis.call("zscore", kqueue, jobid));
+local exists = tonumber(redis.call("EXISTS", kjob))
 
-local exists = redis.call("EXISTS", kjob)
-if tonumber(exists) == 1 and current_score and ipriority >= current_score then
-    msg = " Not enqueing item. "
-          .. "An existing item has the same or lesser score.";
-    log_warn(msg)
-    return 0;
+-- ######################
+-- Make/Update the Job object (hash map).
+-- ######################
+redis.call("HMSET", kjob, unpack(job_data))
+
+-- ######################
+-- If this job already existed, then we are updating it's queue status
+-- ######################
+if exists == 1 then
+    -- ######################
+    -- Check to see if the job is in the WORKING queue.
+    -- If it is, quit with error.
+    -- ######################
+    if tonumber(redis.call("zscore", kworking, jobid)) ~= nil then
+        log_warn("Job exists in WORKING queue. Job ID: " .. jobid)
+        return redis.error_reply("JOB_IN_WORK")
+    end
+
+    -- ######################
+    -- Check to see if the job is in the SCHEDULED queue.
+    -- If it is, move it to the QUEUED queue.
+    -- ######################
+    if tonumber(redis.call("zscore", kscheduled, jobid)) ~= nil then
+        log_notice("Item already exists in SCHEDULED queue. Moving to QUEUED queue.")
+        redis.call("ZREM", kscheduled, jobid)
+    end
+
+    -- ######################
+    -- Check if job is already queued.
+    -- Only requeue if the priority is higher (lower score).
+    -- ######################
+    local current_score = tonumber(redis.call("zscore", kqueue, jobid))
+    if current_score ~= nil and priority >= current_score then
+        log_warn("Not enqueing item. An existing item has the same or lesser score.")
+        return 0 -- return redis.error_reply("JOB_EXISTS")
+    end
+
 end
 
--- Make the Job object as a hash map.
-redis.call("HMSET", kjob, unpack(job_data));
-redis.call("HMSET", kjob, "priority", priority, "state", "enqueued");
+redis.call("HMSET", kjob, "priority", priority, "state", "enqueued")
 
+-- ######################
 -- Add Job ID to queue
-result = redis.pcall("ZADD", kqueue, ipriority, jobid);
-if is_error(result) then
-    redis.call("DEL", kjob) -- Remove the Job (rollback)
-    msg = "ZADD operation failed. result: " .. tostring(result);
-    log_warn(msg)
-    return redis.error_reply(msg)
-end
+-- ######################
+redis.call("ZADD", kqueue, priority, jobid)
 
 return 1;
