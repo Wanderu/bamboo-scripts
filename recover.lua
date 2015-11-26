@@ -64,7 +64,6 @@ if requeue_seconds == nil then
     return redis.error_reply("INVALID_PARAMETER: requeue_seconds")
 end
 
-local dtutcnow = tonumber(redis.call("TIME")[1]) -- Unix UTC Seconds
 local dtreschedule = dtutcnow + requeue_seconds
 
 local kworking   = ns .. sep .. "WORKING"   -- Jobs that have been consumed

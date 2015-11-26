@@ -1,6 +1,6 @@
 --[[
 
-consume <ns> , <client_name> <jobid> <expires>
+consume <ns> , <client_name> <jobid> <datetime> <expires>
 
 Keys: <ns>
     ns: Namespace under which queue data exists.
@@ -8,6 +8,7 @@ Args: <client_name> <jobid> <expires>
     client_name: The name/id of the worker.
     jobid: The Job ID to consume. Optional. Defaults to "". If not specified
             the next highest priority job is consumed.
+    datetime: Current datetime (Unix seconds since epoch)
     expires: Seconds until Job expires and is candidate to go back on the queue.
             If "", defaults to 60 seconds.
 
@@ -43,10 +44,14 @@ local kworkers = ns .. sep .. "WORKERS"  -- Worker IDs
 
 local client_name = ARGV[1]
 local jobid      = ARGV[2]
-local expires     = tonumber(ARGV[3])
-if expires == "" or expires == nil then expires = 60 end
 
-local dtutcnow = tonumber(redis.call("TIME")[1]) -- Unix UTC Seconds
+local dtutcnow = tonumber(ARGV[3])
+if dtutcnow == nil then
+    return redis.error_reply("INVALID_PARAMETER: datetime")
+end
+
+local expires = tonumber(ARGV[4])
+if expires == "" or expires == nil then expires = 60 end
 
 local max_jobs = tonumber(redis.pcall("GET", kmaxjobs))
 local njobs = tonumber(redis.pcall("ZCARD", kworking))

@@ -46,11 +46,11 @@ local msg, result;
 -- Make a table of all Job object parameters
 -- ######################
 local job_data = {}
-local n = 0
 for i = 3, tonumber(table.getn(ARGV)) do
     table.insert(job_data, ARGV[i])
-    n = n+1
 end
+
+local n = table.getn(ARGV) - 2
 
 if (n % 2 == 1) then
     msg = "Invalid number of job object parameters: " .. tostring(n)
@@ -73,7 +73,7 @@ if exists == 1 then
     -- Check to see if the job is in the WORKING queue.
     -- If it is, quit with error.
     -- ######################
-    if tonumber(redis.call("zscore", kworking, jobid)) ~= nil then
+    if tonumber(redis.call("ZSCORE", kworking, jobid)) ~= nil then
         log_warn("Job exists in WORKING queue. Job ID: " .. jobid)
         return redis.error_reply("JOB_IN_WORK")
     end
@@ -82,7 +82,7 @@ if exists == 1 then
     -- Check to see if the job is in the SCHEDULED queue.
     -- If it is, move it to the QUEUED queue.
     -- ######################
-    if tonumber(redis.call("zscore", kscheduled, jobid)) ~= nil then
+    if tonumber(redis.call("ZSCORE", kscheduled, jobid)) ~= nil then
         log_notice("Item already exists in SCHEDULED queue. Moving to QUEUED queue.")
         redis.call("ZREM", kscheduled, jobid)
     end
@@ -91,7 +91,7 @@ if exists == 1 then
     -- Check if job is already queued.
     -- Only requeue if the priority is higher (lower score).
     -- ######################
-    local current_score = tonumber(redis.call("zscore", kqueue, jobid))
+    local current_score = tonumber(redis.call("ZSCORE", kqueue, jobid))
     if current_score ~= nil and priority >= current_score then
         log_warn("Not enqueing item. An existing item has the same or lesser score.")
         return 0 -- return redis.error_reply("JOB_EXISTS")
@@ -99,6 +99,10 @@ if exists == 1 then
 
 end
 
+
+-- ######################
+-- Always update the priority and state with the current values.
+-- ######################
 redis.call("HMSET", kjob, "priority", priority, "state", "enqueued")
 
 -- ######################
