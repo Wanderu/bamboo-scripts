@@ -101,6 +101,7 @@ end
 
 abandoned = tab_as_array(abandoned) -- convert to array (int indices)
 for i, jobid in ipairs(abandoned) do
+    log_verbose("Recovering: " .. jobid)
     local result
     local kjob = ns .. sep .. "JOBS" .. sep .. jobid
 
@@ -127,10 +128,9 @@ for i, jobid in ipairs(abandoned) do
     local maxfailed = tonumber(redis.pcall("GET", kmaxfailed))
     if maxfailed == nil or failures >= maxfailed then
         -- ######################
-        -- Move to FAILED queue, remove Job data
+        -- Move to FAILED queue
         -- ######################
         result = redis.pcall("ZADD", kfailed, dtutcnow, jobid);
-        result = redis.pcall("DEL", kjob);
     else
         -- ######################
         -- Move to SCHEDULED queue, keep Job data

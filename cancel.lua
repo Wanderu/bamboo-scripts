@@ -34,28 +34,24 @@ local jobid = ARGV[1]
 local kworking   = ns .. sep .. "WORKING"   -- Jobs that have been consumed
 local kqueue     = ns .. sep .. "QUEUED"
 local kscheduled = ns .. sep .. "SCHEDULED" -- Scheduled Queue
-local kfailed    = ns .. sep .. "FAILED"
--- local kfailed    = ns .. sep .. "FAILED"    -- Failed Queue
+local kfailed    = ns .. sep .. "FAILED"    -- Failed Queue
 
 local kjob = ns .. sep .. "JOBS" .. sep .. jobid
-local exists = tonumber(redis.call("EXISTS", kjob))
-local result
 
 -- if it's in work, can't cancel
-result = redis.call("ZSCORE", kworking, jobid)
--- result = redis.pcall("ZSCORE", kworking, jobid)
--- log_verbose(cjson.encode(result))
+local result = tonumber(redis.call("ZSCORE", kworking, jobid))
 if result ~= nil then
-    log_warn("Job already in work, cannot remove/cancel.")
-    redis.error_reply("JOB_IN_WORK")
+    log_warn("Job already in work, cannot remove/cancel. " .. kjob)
+    return redis.error_reply("JOB_IN_WORK")
 end
 
 redis.call("ZREM", kqueue, jobid)
 redis.call("ZREM", kscheduled, jobid)
 redis.call("ZREM", kfailed, jobid)
 
+local exists = tonumber(redis.call("EXISTS", kjob))
 if exists == nil then
-    redis.error_reply("UNKNOWN_JOB_ID")
+    return redis.error_reply("UNKNOWN_JOB_ID")
 end
 
 result = redis.call("DEL", kjob);

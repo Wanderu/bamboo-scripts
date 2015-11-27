@@ -35,7 +35,7 @@ end
 local ns = KEYS[1]
 local jobid = ARGV[1]
 local dtutcnow = tonumber(ARGV[2])
-if dtuctnow == nil then
+if dtutcnow == nil then
     return redis.error_reply("INVALID_PARAMETER: datetime")
 end
 local requeue_seconds = tonumber(ARGV[3])
@@ -82,10 +82,9 @@ redis.call("HMSET", kjob,
 local maxfailed = tonumber(redis.pcall("GET", kmaxfailed))
 if maxfailed == nil or failures >= maxfailed then
     -- ######################
-    -- Move to FAILED queue, remove Job data
+    -- Move to FAILED queue
     -- ######################
     result = redis.pcall("ZADD", kfailed, dtutcnow, jobid);
-    result = redis.pcall("DEL", kjob);
 else
     -- ######################
     -- Move to SCHEDULED queue, keep Job data
