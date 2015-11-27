@@ -34,9 +34,10 @@ local priority = tonumber(ARGV[1])
 local jobid = ARGV[2]
 
 -- Primary Job queue (ZSet)
-local kqueue  = ns .. sep .. "QUEUED"
-local kscheduled  = ns .. sep .. "SCHEDULED"
-local kworking   = ns .. sep .. "WORKING"  -- Jobs that have been consumed
+local kqueue        = ns .. sep .. "QUEUED"
+local kqueue_notify = ns .. sep .. "QUEUED:NOTIFY"
+local kscheduled    = ns .. sep .. "SCHEDULED"
+local kworking      = ns .. sep .. "WORKING"  -- Jobs that have been consumed
 -- Key of the Job data (HMap)
 local kjob = ns .. sep .. "JOBS" .. sep .. jobid
 
@@ -109,5 +110,6 @@ redis.call("HMSET", kjob, "priority", priority, "state", "enqueued")
 -- Add Job ID to queue
 -- ######################
 redis.call("ZADD", kqueue, priority, jobid)
+redis.call("PUBLISH", kqueue_notify, "jobid")
 
 return 1;

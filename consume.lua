@@ -37,13 +37,13 @@ local is_error = function(result)
 end
 
 local ns = KEYS[1]
-local kqueue   = ns .. sep .. "QUEUED"   -- Primary Job queue
-local kworking = ns .. sep .. "WORKING"  -- Jobs that have been consumed
-local kmaxjobs = ns .. sep .. "MAXJOBS"  -- Max number of jobs allowed
-local kworkers = ns .. sep .. "WORKERS"  -- Worker IDs
+local kqueue        = ns .. sep .. "QUEUED"   -- Primary Job queue
+local kworking      = ns .. sep .. "WORKING"  -- Jobs that have been consumed
+local kmaxjobs      = ns .. sep .. "MAXJOBS"  -- Max number of jobs allowed
+local kworkers      = ns .. sep .. "WORKERS"  -- Worker IDs
 
 local client_name = ARGV[1]
-local jobid      = ARGV[2]
+local jobid       = ARGV[2]
 
 local dtutcnow = tonumber(ARGV[3])
 if dtutcnow == nil then
