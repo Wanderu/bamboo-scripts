@@ -1,12 +1,44 @@
 --[[
--- enqueue
--- Keys: <ns>
---  ns: Namespace under which queue data exists.
--- Args: <priority> <jobid> <key> <val> [<key> <val> ...]
---       key, val pairs are values representing a Job object.
---
--- Returns: 0 if job already existed. 1 if added.
--- Errors: INVALID_PARAMETERS
+
+Copyright 2015 Wanderu, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+--]]
+
+--[[ enqueue
+
+Enqueue the Job onto the specified queue; either QUEUED or SCHEDULED.
+By default, this script only allows requeuing the job in a way that
+makes it available to run sooner. IE. SCHEDULED -> QUEUED,
+SCHEDULED -> SCHEDULED with earlier date, or QUEUED -> QUEUED with
+lower score (higher priority). Use the 'force' argument to have
+full requeue behavior.
+
+Keys: <ns>
+ns: Namespace under which queue data exists.
+Args: <queue> <priority> <jobid> <force> <key> <val> [<key> <val> ...]
+        key, val pairs are values representing a Job object.
+        queue: String. The queue name. One of "QUEUED" or "SCHEDULED"
+        priority: Int. Lower means higher priority. Should be a unix utc
+                timestamp if scheduling onto the SCHEDULED queue.
+        jobid: String. Unique ID of the job.
+        force: If "1", and the job already exists then acts as a requeue
+            function.
+
+Returns: 1 if added.
+Errors: INVALID_PARAMETERS, JOB_IN_WORK, JOB_EXISTS
+
 -- ]]
 
 local fname = "enqueue"
@@ -30,18 +62,28 @@ end
 
 local ns = KEYS[1]
 
-local priority = tonumber(ARGV[1])
-local jobid = ARGV[2]
+local queue = ARGV[1]
+local priority = tonumber(ARGV[2])
+local jobid = ARGV[3]
+local force = ARGV[4] == "1"
 
--- Primary Job queue (ZSet)
-local kqueue        = ns .. sep .. "QUEUED"
-local kqueue_notify = ns .. sep .. "QUEUED:NOTIFY"
-local kscheduled    = ns .. sep .. "SCHEDULED"
-local kworking      = ns .. sep .. "WORKING"  -- Jobs that have been consumed
--- Key of the Job data (HMap)
-local kjob = ns .. sep .. "JOBS" .. sep .. jobid
+local kqueue     = ns .. sep .. queue
+local kqueued    = ns .. sep .. "QUEUED"
+local kscheduled = ns .. sep .. "SCHEDULED"
+local kworking   = ns .. sep .. "WORKING"
+local kfailed    = ns .. sep .. "FAILED"
+local kjob       = ns .. sep .. "JOBS" .. sep .. jobid
+
+local chan_queue_notify = ns .. sep .. "QUEUED:NOTIFY"
 
 local msg, result;
+
+-- ######################
+-- Validation. Only support enqueuing to QUEUED or SCHEDULED.
+if (kqueue ~= kqueued and kqueue ~= kscheduled) then
+    return redis.error_reply("INVALID_PARAMETERS: Cannot enqueue to queue: " .. kqueue)
+end
+-- ######################
 
 -- ######################
 -- Make a table of all Job object parameters
@@ -75,41 +117,68 @@ if exists == 1 then
     -- If it is, quit with error.
     -- ######################
     if tonumber(redis.call("ZSCORE", kworking, jobid)) ~= nil then
-        log_warn("Job exists in WORKING queue. Job ID: " .. jobid)
+        log_warn("Job exists in WORKING queue: " .. kworking .. ". Cannot remove it. Job ID: " .. jobid)
         return redis.error_reply("JOB_IN_WORK")
     end
 
     -- ######################
-    -- Check to see if the job is in the SCHEDULED queue.
+    -- Check to see if the job is in the FAILED queue.
     -- If it is, move it to the QUEUED queue.
     -- ######################
-    if tonumber(redis.call("ZSCORE", kscheduled, jobid)) ~= nil then
-        log_notice("Item already exists in SCHEDULED queue. Moving to QUEUED queue.")
+    if tonumber(redis.call("ZSCORE", kfailed, jobid)) ~= nil then
+        log_notice("Item already exists in FAILED queue: " .. kfailed .. ". Removing it. Job ID: " .. jobid)
+        redis.call("ZREM", kfailed, jobid)
+    end
+
+    -- ######################
+    -- Check to see if the job is in the SCHEDULED queue.
+    -- Only requeue if the reschedule date is earlier (lesser score).
+    -- ######################
+    local current_score = tonumber(redis.call("ZSCORE", kscheduled, jobid))
+    if current_score ~= nil then
+        if (kqueue == kscheduled) and (priority >= current_score) and (force == false) then
+            log_warn("Not enqueing item. An existing item has the same or lesser SCHEDULED score.")
+            return redis.error_reply("JOB_EXISTS: Already a member of " .. kscheduled)
+        end
+        log_notice("Item already exists in SCHEDULED queue: " .. kscheduled .. ". Removing it. Job ID: " .. jobid)
         redis.call("ZREM", kscheduled, jobid)
     end
 
     -- ######################
-    -- Check if job is already queued.
-    -- Only requeue if the priority is higher (lower score).
+    -- Check to see if the job is in the QUEUED queue.
+    -- Don't allow requeuing from the QUEUED queue onto other queues.
+    -- Only requeue if the priority is higher (lesser score).
     -- ######################
-    local current_score = tonumber(redis.call("ZSCORE", kqueue, jobid))
-    if current_score ~= nil and priority >= current_score then
-        log_warn("Not enqueing item. An existing item has the same or lesser score.")
-        return 0 -- return redis.error_reply("JOB_EXISTS")
+    current_score = tonumber(redis.call("ZSCORE", kqueued, jobid))
+    if current_score ~= nil then
+        if kqueue ~= kqueued and force == false then
+            log_warn("Not enqueing item. Cannot requeue onto a lower priority queue.")
+            return redis.error_reply("JOB_EXISTS: Already a member of " .. kqueued)
+        end
+        if kqueue == kqueued and priority >= current_score and force == false then
+            log_warn("Not enqueing item. An existing item has the same or lesser QUEUED score.")
+            return redis.error_reply("JOB_EXISTS: Already a member of " .. kqueued)
+        end
+        log_notice("Item already exists in QUEUED queue: " .. kqueue .. ". Removing it. Job ID: " .. jobid)
+        redis.call("ZREM", kqueued, jobid)
     end
-
 end
 
+-- ######################
+-- Update the priority and state with the current applicable values.
+-- ######################
+if kqueue == kqueued then
+    redis.call("HMSET", kjob, "priority", priority, "state", "enqueued")
+end
 
--- ######################
--- Always update the priority and state with the current values.
--- ######################
-redis.call("HMSET", kjob, "priority", priority, "state", "enqueued")
+if kqueue == kscheduled then
+    redis.call("HMSET", kjob, "state", "scheduled")
+end
 
 -- ######################
 -- Add Job ID to queue
 -- ######################
 redis.call("ZADD", kqueue, priority, jobid)
-redis.call("PUBLISH", kqueue_notify, "jobid")
+redis.call("PUBLISH", chan_queue_notify, "jobid")
 
-return 1;
+return 1

@@ -1,10 +1,28 @@
 --[[
 
+Copyright 2015 Wanderu, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+--]]
+
+--[[
+
 consume <ns> , <client_name> <jobid> <datetime> <expires>
 
-Keys: <ns>
+Keys:
     ns: Namespace under which queue data exists.
-Args: <client_name> <jobid> <expires>
+Args:
     client_name: The name/id of the worker.
     jobid: The Job ID to consume. Optional. Defaults to "". If not specified
             the next highest priority job is consumed.
@@ -37,13 +55,15 @@ local is_error = function(result)
 end
 
 local ns = KEYS[1]
-local kqueue        = ns .. sep .. "QUEUED"   -- Primary Job queue
-local kworking      = ns .. sep .. "WORKING"  -- Jobs that have been consumed
-local kmaxjobs      = ns .. sep .. "MAXJOBS"  -- Max number of jobs allowed
-local kworkers      = ns .. sep .. "WORKERS"  -- Worker IDs
+local kqueued    = ns .. sep .. "QUEUED"    -- Primary Job queue
+local kscheduled = ns .. sep .. "SCHEDULED" -- Scheduled Job queue
+local kworking   = ns .. sep .. "WORKING"   -- Jobs that have been consumed
+local kmaxjobs   = ns .. sep .. "MAXJOBS"   -- Max number of jobs allowed
+local kworkers   = ns .. sep .. "WORKERS"   -- Worker IDs
 
 local client_name = ARGV[1]
 local jobid       = ARGV[2]
+local score
 
 local dtutcnow = tonumber(ARGV[3])
 if dtutcnow == nil then
@@ -74,16 +94,37 @@ if client_name == "" then
 end
 
 -- ######################
+-- If there is an item ready to be moved to QUEUED from SCHEDULED, 
+-- then move it. (Cascade built into consume).
+-- ######################
+local qitem = redis.pcall("ZRANGE", kscheduled, 0, 0, 'withscores')
+-- ZRANGE always returns a table. empty {} if queue does not exist.
+if #qitem > 0 then
+    local _jobid = qitem[1]
+    local _score = tonumber(qitem[2])
+    if _score <= dtutcnow then
+        local _kjob = ns .. sep .. "JOBS" .. sep .. _jobid
+        local _priority = tonumber(redis.call("HGET", _kjob, "priority"))
+        if _priority ~= nil then
+            redis.call("ZREM", kscheduled, _jobid)
+            redis.call("ZADD", kqueued, _priority, _jobid)
+            log_verbose("Moved " .. _jobid .. " from " .. kscheduled .. " to " .. kqueued)
+        else
+            log_warn("Could not retrieve priority from job object: " .. _kjob)
+        end
+    end
+end
+
+-- ######################
 -- If no jobid specified, then take the first item in the queue.
 -- If a jobid was specified, find that job in the queue.
 -- ######################
-local score
 if jobid == "" then
     -- peek at 1 item from the queue
-    result = redis.call("ZRANGE", kqueue, 0, 0, 'withscores')
+    result = redis.call("ZRANGE", kqueued, 0, 0, 'withscores')
 
     if table.getn(result) == 0 then
-        log_verbose("No items on the queue: " .. kqueue)
+        log_verbose("No items on the queue: " .. kqueued)
         return redis.error_reply("NO_ITEMS")
     end
 
@@ -92,10 +133,10 @@ if jobid == "" then
     jobid = result[1]
     score = tonumber(result[2])
 else
-    result = redis.pcall("ZSCORE", kqueue, jobid)
+    result = redis.pcall("ZSCORE", kqueued, jobid)
     if is_error(result) then
         log_error(fname, "Cannot obtain score for job: " .. jobid ..
-                "from zset: " .. kqueue);
+                "from zset: " .. kqueued);
         return redis.error_reply("UNKNOWN_JOB_ID")
     end
     score = tonumber(result)
@@ -107,7 +148,7 @@ local kjob = ns .. sep .. "JOBS" .. sep .. jobid
 -- ######################
 -- Pop Job from Main Queue
 -- ######################
-local nremoved = redis.call("ZREM", kqueue, jobid)
+local nremoved = redis.call("ZREM", kqueued, jobid)
 
 -- ######################
 -- Add Job to Working Set
