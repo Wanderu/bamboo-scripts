@@ -108,6 +108,7 @@ if #qitem > 0 then
         if _priority ~= nil then
             redis.call("ZREM", kscheduled, _jobid)
             redis.call("ZADD", kqueued, _priority, _jobid)
+            redis.call("HMSET", _kjob, "state", "enqueued")
             log_verbose("Moved " .. _jobid .. " from " .. kscheduled .. " to " .. kqueued)
         else
             log_warn("Could not retrieve priority from job object: " .. _kjob)

@@ -149,11 +149,13 @@ for i, jobid in ipairs(abandoned) do
         -- Move to FAILED queue
         -- ######################
         result = redis.pcall("ZADD", kfailed, dtutcnow, jobid);
+        redis.call("HMSET", kjob, "state", "failed")
     else
         -- ######################
         -- Move to SCHEDULED queue, keep Job data
         -- ######################
         result = redis.pcall("ZADD", kscheduled, dtreschedule, jobid);
+        redis.call("HMSET", kjob, "state", "scheduled")
     end
 
     -- # END: fail.lua

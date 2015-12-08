@@ -74,7 +74,8 @@ local kworking   = ns .. sep .. "WORKING"
 local kfailed    = ns .. sep .. "FAILED"
 local kjob       = ns .. sep .. "JOBS" .. sep .. jobid
 
-local chan_queue_notify = ns .. sep .. "QUEUED:NOTIFY"
+-- MY:NS:NOTIFY:QUEUED & MY:NS:NOTIFY:SCHEDULED
+local chan_queue_notify = ns .. sep .. "NOTIFY" .. sep .. queue
 
 local msg, result;
 

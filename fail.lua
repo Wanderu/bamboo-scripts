@@ -102,11 +102,13 @@ if maxfailed == nil or failures >= maxfailed then
     -- ######################
     -- Move to FAILED queue
     -- ######################
+    redis.call("HMSET", kjob, "state", "failed")
     result = redis.pcall("ZADD", kfailed, dtutcnow, jobid);
 else
     -- ######################
     -- Move to SCHEDULED queue, keep Job data
     -- ######################
+    redis.call("HMSET", kjob, "state", "scheduled")
     result = redis.pcall("ZADD", kscheduled, dtreschedule, jobid);
 end
 
