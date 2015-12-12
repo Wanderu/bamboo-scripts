@@ -16,7 +16,7 @@ limitations under the License.
 
 --]]
 
---[[ recover <ns> , <requeue_seconds>
+--[[ recover <ns> , <datetime> <requeue_seconds>
 
 Find any Jobs that have been abandoned.
 Clean extraneous worker entries.
