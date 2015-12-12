@@ -74,9 +74,6 @@ local kworking   = ns .. sep .. "WORKING"
 local kfailed    = ns .. sep .. "FAILED"
 local kjob       = ns .. sep .. "JOBS" .. sep .. jobid
 
--- MY:NS:NOTIFY:QUEUED & MY:NS:NOTIFY:SCHEDULED
-local chan_queue_notify = ns .. sep .. "NOTIFY" .. sep .. queue
-
 local msg, result;
 
 -- ######################
@@ -180,6 +177,7 @@ end
 -- Add Job ID to queue
 -- ######################
 redis.call("ZADD", kqueue, priority, jobid)
-redis.call("PUBLISH", chan_queue_notify, "jobid")
+-- Publish on a channel who's name is the same as the queue key.
+redis.call("PUBLISH", kqueue, jobid)
 
 return 1

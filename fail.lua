@@ -103,13 +103,15 @@ if maxfailed == nil or failures >= maxfailed then
     -- Move to FAILED queue
     -- ######################
     redis.call("HMSET", kjob, "state", "failed")
-    result = redis.pcall("ZADD", kfailed, dtutcnow, jobid);
+    redis.call("ZADD", kfailed, dtutcnow, jobid);
+    redis.call("PUBLISH", kfailed, jobid)
 else
     -- ######################
     -- Move to SCHEDULED queue, keep Job data
     -- ######################
     redis.call("HMSET", kjob, "state", "scheduled")
-    result = redis.pcall("ZADD", kscheduled, dtreschedule, jobid);
+    redis.call("ZADD", kscheduled, dtreschedule, jobid);
+    redis.call("PUBLISH", kscheduled, jobid)
 end
 
 -- ######################
@@ -120,7 +122,7 @@ if client_name == "" or client_name == false then
     log_warn("No worker registered/found for job.")
 else
     local kworker = kworkers .. sep .. client_name
-    result = redis.pcall("SREM", kworker, jobid)
+    redis.call("SREM", kworker, jobid)
     -- If there are no more outstanding jobs, remove the worker from the set of
     -- workers.
     local njobs = redis.call("SCARD", kworker)

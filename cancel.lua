@@ -57,8 +57,10 @@ local kfailed    = ns .. sep .. "FAILED"    -- Failed Queue
 local kjob = ns .. sep .. "JOBS" .. sep .. jobid
 
 -- if it's in work, can't cancel
-local result = tonumber(redis.call("ZSCORE", kworking, jobid))
-if result ~= nil then
+-- local result = tonumber(redis.call("ZSCORE", kworking, jobid))
+-- if result ~= nil then
+local state = redis.call("HGET", kjob, "state")
+if state == "working" then
     log_warn("Job already in work, cannot remove/cancel. " .. kjob)
     return redis.error_reply("JOB_IN_WORK")
 end

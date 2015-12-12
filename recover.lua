@@ -120,7 +120,6 @@ end
 abandoned = tab_as_array(abandoned) -- convert to array (int indices)
 for i, jobid in ipairs(abandoned) do
     log_verbose("Recovering: " .. jobid)
-    local result
     local kjob = ns .. sep .. "JOBS" .. sep .. jobid
 
     -- # NOTE: Same block of code as fail.lua #
@@ -148,13 +147,15 @@ for i, jobid in ipairs(abandoned) do
         -- ######################
         -- Move to FAILED queue
         -- ######################
-        result = redis.pcall("ZADD", kfailed, dtutcnow, jobid);
+        redis.call("ZADD", kfailed, dtutcnow, jobid);
+        redis.call("PUBLISH", kfailed, jobid)
         redis.call("HMSET", kjob, "state", "failed")
     else
         -- ######################
         -- Move to SCHEDULED queue, keep Job data
         -- ######################
-        result = redis.pcall("ZADD", kscheduled, dtreschedule, jobid);
+        redis.call("ZADD", kscheduled, dtreschedule, jobid);
+        redis.call("PUBLISH", kscheduled, jobid)
         redis.call("HMSET", kjob, "state", "scheduled")
     end
 

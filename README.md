@@ -1,8 +1,9 @@
 # bamboo-scripts
 
-A set of Lua scripts intented for use as a reliable Redis-backed (redis.io) job
-queuing system. They are used by client libraries (as git submodules) for cross
-language compatibility.
+A set of Lua scripts intented for use as a distributed reliable Redis-backed
+(redis.io) job queuing system. They are used by client libraries for cross
+language compatibility. That means that you can use any language to
+add, consume, and view the queue system.
 
 Client libraries:
 

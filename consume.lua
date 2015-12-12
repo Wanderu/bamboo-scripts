@@ -108,6 +108,7 @@ if #qitem > 0 then
         if _priority ~= nil then
             redis.call("ZREM", kscheduled, _jobid)
             redis.call("ZADD", kqueued, _priority, _jobid)
+            redis.call("PUBLISH", kqueued, _jobid)
             redis.call("HMSET", _kjob, "state", "enqueued")
             log_verbose("Moved " .. _jobid .. " from " .. kscheduled .. " to " .. kqueued)
         else
@@ -152,25 +153,30 @@ local kjob = ns .. sep .. "JOBS" .. sep .. jobid
 local nremoved = redis.call("ZREM", kqueued, jobid)
 
 -- ######################
--- Add Job to Working Set
+-- Add Job to Working Set.
+-- NOTE: The score of the WORKING ZSET is the date it was consumed.
 -- ######################
-result = redis.pcall("ZADD", kworking, score, jobid)
+redis.call("ZADD", kworking, dtutcnow, jobid)
+-- Publish on a channel who's name is the same as the queue key.
+redis.call("PUBLISH", kworking, jobid)
 
 -- ######################
 -- Update Job state
 -- ######################
-result = redis.pcall("HMSET", kjob,
-                     "owner", client_name,
-                     "state", "working",
-                     "consumed", dtutcnow);
+redis.call("HMSET", kjob,
+           "owner", client_name,
+           "state", "working",
+           "consumed", dtutcnow);
 
 -- ######################
 -- Register this worker as a current worker and register the jobid with this
 -- worker.  Expire the worker after a certain amount of time.
 -- ######################
-result = redis.pcall("SADD", kworkers, client_name) -- Set of worker names
+redis.call("SADD", kworkers, client_name) -- Set of worker names
+
 local kworker = kworkers .. sep .. client_name
-result = redis.pcall("SADD", kworker, jobid) -- Set of jobs that a worker has
+redis.call("SADD", kworker, jobid) -- Set of jobs that a worker has
+
 -- Make a key for the worker that expires.
 local kworker_active = kworkers .. sep .. client_name .. sep .. "ACTIVE"
 redis.call("SET", kworker_active, 1) -- Key to signify that the worker is active.

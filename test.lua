@@ -6,7 +6,7 @@
 -- return redis.call("ZSCORE", "T:QUEUE", "item2")
 -- local time = redis.call("TIME")
 -- return tonumber(time[1])
-return redis.call("PUBLISH", "TEST:QUEUED:NOTIFY", "dude")
+return redis.call("PUBLISH", "TEST:QUEUED", "dude")
 
 -- local tab = {"a","A"}
 -- return tab
