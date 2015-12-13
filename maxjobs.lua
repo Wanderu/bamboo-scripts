@@ -53,4 +53,8 @@ end
 -- ######################
 -- Return the current number
 -- ######################
-return redis.call("GET", kmaxjobs)
+maxjobs = tonumber(redis.call("GET", kmaxjobs))
+if maxjobs == nil then
+    return 0
+end
+return maxjobs

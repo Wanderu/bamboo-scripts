@@ -53,4 +53,8 @@ end
 -- ######################
 -- Return the current number
 -- ######################
-return redis.call("GET", kmaxfailed)
+maxfailed = tonumber(redis.call("GET", kmaxfailed))
+if maxfailed == nil then
+    return 0
+end
+return maxfailed
