@@ -58,7 +58,7 @@ local kworkers   = ns .. sep .. "WORKERS"   -- Worker IDs
 
 local dtutcnow = tonumber(ARGV[1])
 if dtutcnow == nil then
-    log_error("INVALID_PARAMETER: datetime -> " .. ARGV[1])
+    log_warn("INVALID_PARAMETER: datetime -> " .. ARGV[1])
     return redis.error_reply("INVALID_PARAMETER: datetime")
 end
 
