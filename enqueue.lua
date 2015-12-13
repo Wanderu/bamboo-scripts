@@ -37,7 +37,7 @@ Args: <queue> <priority> <jobid> <force> <key> <val> [<key> <val> ...]
             function.
 
 Returns: 1 if added.
-Errors: INVALID_PARAMETERS, JOB_IN_WORK, JOB_EXISTS
+Errors: INVALID_PARAMETER, JOB_IN_WORK, JOB_EXISTS
 
 -- ]]
 
@@ -79,7 +79,7 @@ local msg, result;
 -- ######################
 -- Validation. Only support enqueuing to QUEUED or SCHEDULED.
 if (kqueue ~= kqueued and kqueue ~= kscheduled) then
-    return redis.error_reply("INVALID_PARAMETERS: Cannot enqueue to queue: " .. kqueue)
+    return redis.error_reply("INVALID_PARAMETER: Cannot enqueue to queue: " .. kqueue)
 end
 -- ######################
 
@@ -96,7 +96,7 @@ local n = table.getn(ARGV) - 2
 if (n % 2 == 1) then
     msg = "Invalid number of job object parameters: " .. tostring(n)
     log_warn(msg)
-    return redis.error_reply("INVALID_PARAMETERS")
+    return redis.error_reply("INVALID_PARAMETER")
 end
 
 local exists = tonumber(redis.call("EXISTS", kjob))
