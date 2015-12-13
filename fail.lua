@@ -73,7 +73,7 @@ local kjob = ns .. sep .. "JOBS" .. sep .. jobid
 local result
 
 result = redis.pcall("ZSCORE", kworking, jobid)
-if result == nil or is_error(result) then
+if tonumber(result) == nil or is_error(result) then
     log_warn("Provided job not found. Job ID: " .. jobid .. "Queue: " .. kworking)
     return redis.error_reply("UNKNOWN_JOB_ID: " ..
                              "Job not found in queue." .. kworking)
