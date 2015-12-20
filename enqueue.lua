@@ -87,7 +87,7 @@ end
 -- Make a table of all Job object parameters
 -- ######################
 local job_data = {}
-for i = 3, tonumber(table.getn(ARGV)) do
+for i = 5, tonumber(table.getn(ARGV)) do
     table.insert(job_data, ARGV[i])
 end
 
