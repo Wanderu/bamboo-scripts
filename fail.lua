@@ -26,7 +26,8 @@ Keys:
 Args:
     jobid: Job identifier.
     datetime: Current datetime (Unix seconds since epoch)
-    requeue_seconds: Seconds until requeue.
+    requeue_seconds: Seconds until requeue. If < 0, then the job
+    will be immediately failed and skip any rescheduling.
 
 Returns: 1 if failed correctly.
 Errors: UNKNOWN_JOB_ID
@@ -99,7 +100,7 @@ redis.call("HMSET", kjob,
 -- Either add to SCHEDULED or FAILED queues depending on MAX_FAILED
 -- ######################
 local maxfailed = tonumber(redis.pcall("GET", kmaxfailed))
-if maxfailed == nil or failures >= maxfailed then
+if maxfailed == nil or failures >= maxfailed or requeue_seconds < 0 then
     -- ######################
     -- Move to FAILED queue
     -- ######################
