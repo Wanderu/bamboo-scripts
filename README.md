@@ -10,3 +10,4 @@ add, consume, and view the queue system.
     * Go version: https://bitbucket.org/offero/go-bamboo
     * Python version: https://bitbucket.org/wanderua/wanderu.bamboo
     * Javascript version: https://bitbucket.org/offero/jsbamboo
+    * Lua Scripts: https://bitbucket.org/wanderua/bamboo-scripts
