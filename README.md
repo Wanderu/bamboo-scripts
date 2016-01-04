@@ -5,7 +5,7 @@ A set of Lua scripts intented for use as a distributed reliable Redis-backed
 language compatibility. That means that you can use any language to
 add, consume, and view the queue system.
 
-Client libraries:
+## Client libraries:
 
     * Go version: https://bitbucket.org/offero/go-bamboo
     * Python version: https://bitbucket.org/wanderua/wanderu.bamboo
