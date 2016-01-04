@@ -9,4 +9,4 @@ Client libraries:
 
     * Go version: https://bitbucket.org/offero/go-bamboo
     * Python version: https://bitbucket.org/wanderua/wanderu.bamboo
-    * Javascript version: (Coming soon)
+    * Javascript version: https://bitbucket.org/offero/jsbamboo
