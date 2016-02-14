@@ -74,5 +74,5 @@ if exists == nil then
     return redis.error_reply("UNKNOWN_JOB_ID")
 end
 
-result = redis.call("DEL", kjob);
+local result = redis.call("DEL", kjob);
 return result
