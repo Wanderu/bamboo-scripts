@@ -94,7 +94,7 @@ local failures = tonumber(redis.pcall("HGET", kjob, "failures"))
 if failures == nil then failures = 0 end
 redis.call("HMSET", kjob,
            "failures", tostring(failures+1),
-           "datefailed", tostring(dtutcnow))
+           "failed", tostring(dtutcnow))
 
 -- ######################
 -- Either add to SCHEDULED or FAILED queues depending on MAX_FAILED
