@@ -31,24 +31,36 @@ Args:
 local fname = "cancel"
 local sep = ":"
 local ns = KEYS[1]
-local queues = ARGS
+
+local log_verbose = function (message)
+    redis.log(redis.LOG_VERBOSE, "<" .. fname .. ">" .. " " .. message)
+end
 
 local log_warn = function (message)
     redis.log(redis.LOG_WARNING, "<" .. fname .. ">" .. " " .. message)
 end
 
+-- log_verbose(cjson.encode(ARGV))
+
+local ALL_QUEUES = {}
+ALL_QUEUES["QUEUED"] = true
+ALL_QUEUES["SCHEDULED"] = true
+ALL_QUEUES["WORKING"] = true
+ALL_QUEUES["FAILED"] = true
+
 -- validation
-for q = 1, #queues do
-    if queues[q] ~= "QUEUED" or queues[q] ~= "SCHEDULED" or
-            queues[q] ~= "WORKING" or queues[q] ~= "FAILED" then
-        return redis.error_reply("INVALID_PARAMETER: " .. queues[q])
+for q = 1, #ARGV do
+    -- if ARGV[q] ~= "QUEUED" or ARGV[q] ~= "SCHEDULED" or
+    --         ARGV[q] ~= "WORKING" or ARGV[q] ~= "FAILED" then
+    if ALL_QUEUES[ARGV[q]] ~= true then
+        return redis.error_reply("INVALID_PARAMETER: " .. ARGV[q])
     end
 end
 
 -- for each queue
 local number_of_jobs_removed = 0
-for q = 1, #queues do
-    local queue = ns .. sep .. queues[q]
+for q = 1, #ARGV do
+    local queue = ns .. sep .. ARGV[q]
 
     -- local queue_count = redis.call("ZCOUNT", queue)
 
@@ -72,7 +84,7 @@ for q = 1, #queues do
             redis.pcall("DEL", job_key)
         end  -- for each job id
 
-        number_of_jobs_removed = number_of_jobs_removed + #job_ids
+        number_of_jobs_removed = number_of_jobs_removed + (#job_ids)/2
 
     until cursor == 0
     -- It's atomic so we should have iterated through all the elements
