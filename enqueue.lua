@@ -124,7 +124,7 @@ if exists == 1 then
     -- If it is, move it to the QUEUED queue.
     -- ######################
     if tonumber(redis.call("ZSCORE", kfailed, jobid)) ~= nil then
-        log_notice("Item already exists in FAILED queue: " .. kfailed .. ". Removing it. Job ID: " .. jobid)
+        log_notice("Item already exists in FAILED queue: " .. kfailed .. ". " .. (force and "Replacing" or "Removing") .. " it. Job ID: " .. jobid)
         redis.call("ZREM", kfailed, jobid)
     end
 
@@ -138,7 +138,7 @@ if exists == 1 then
             log_warn("Not enqueing item. An existing item has the same or lesser SCHEDULED score.")
             return redis.error_reply("JOB_EXISTS: Already a member of " .. kscheduled)
         end
-        log_notice("Item already exists in SCHEDULED queue: " .. kscheduled .. ". Removing it. Job ID: " .. jobid)
+        log_notice("Item already exists in SCHEDULED queue: " .. kscheduled .. ". " .. (force and "Replacing" or "Removing") .. " it. Job ID: " .. jobid)
         redis.call("ZREM", kscheduled, jobid)
     end
 
@@ -157,7 +157,7 @@ if exists == 1 then
             log_warn("Not enqueing item. An existing item has the same or lesser QUEUED score.")
             return redis.error_reply("JOB_EXISTS: Already a member of " .. kqueued)
         end
-        log_notice("Item already exists in QUEUED queue: " .. kqueue .. ". Removing it. Job ID: " .. jobid)
+        log_notice("Item already exists in QUEUED queue: " .. kqueue .. ". " .. (force and "Replacing" or "Removing") .. " it. Job ID: " .. jobid)
         redis.call("ZREM", kqueued, jobid)
     end
 end
