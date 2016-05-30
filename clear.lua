@@ -40,56 +40,47 @@ local log_warn = function (message)
     redis.log(redis.LOG_WARNING, "<" .. fname .. ">" .. " " .. message)
 end
 
+local log_notice = function (message)
+    redis.log(redis.LOG_NOTICE, "<" .. fname .. ">" .. " " .. message)
+end
+
+local qidx
+local jobidx
+
 -- log_verbose(cjson.encode(ARGV))
 
-local ALL_QUEUES = {}
-ALL_QUEUES["QUEUED"] = true
-ALL_QUEUES["SCHEDULED"] = true
-ALL_QUEUES["WORKING"] = true
-ALL_QUEUES["FAILED"] = true
+local CLEARABLE_QUEUES = {}
+CLEARABLE_QUEUES["QUEUED"] = true
+CLEARABLE_QUEUES["SCHEDULED"] = true
+CLEARABLE_QUEUES["WORKING"] = false  -- can't pull jobs out from under the active workers
+CLEARABLE_QUEUES["FAILED"] = true
 
 -- validation
-for q = 1, #ARGV do
-    -- if ARGV[q] ~= "QUEUED" or ARGV[q] ~= "SCHEDULED" or
-    --         ARGV[q] ~= "WORKING" or ARGV[q] ~= "FAILED" then
-    if ALL_QUEUES[ARGV[q]] ~= true then
-        return redis.error_reply("INVALID_PARAMETER: " .. ARGV[q])
+for qidx = 1, #ARGV do
+    if CLEARABLE_QUEUES[ARGV[qidx]] ~= true then
+        return redis.error_reply("INVALID_PARAMETER: " .. ARGV[qidx])
     end
 end
 
 -- for each queue
 local number_of_jobs_removed = 0
-for q = 1, #ARGV do
-    local queue = ns .. sep .. ARGV[q]
+for qidx = 1, #ARGV do
+    local queue = ns .. sep .. ARGV[qidx]
 
-    -- local queue_count = redis.call("ZCOUNT", queue)
+    local job_ids = redis.call("ZRANGE", queue, 0, -1)
 
-    -- for each job in queue
-    local cursor = 0
-    repeat
-        local scan_result = redis.call("ZSCAN", queue, cursor)
+    for jobidx = 1, #job_ids do
+        local job_id = job_ids[jobidx]
+        -- exists returns 0 if not, 1 if so
+        local job_key = ns .. sep .. "JOBS" .. sep .. job_id
+        -- Remove job data
+        log_verbose("deleting job key: " .. job_key)
+        redis.call("DEL", job_key)
+        number_of_jobs_removed = number_of_jobs_removed + 1
+    end  -- for each job id
 
-        cursor = tonumber(scan_result[1])
-        local job_ids = scan_result[2]
-
-        -- for each job id, check to see if it exists
-        -- every 2 b/c this is an array like: item 1, prio 1, item 2, prio 2, ...
-        for j = 1, #job_ids, 2 do
-            local job_id = job_ids[j]
-            -- exists returns 0 if not, 1 if so
-            local job_key = ns .. sep .. "JOBS" .. sep .. job_id
-            -- Remove entry from queue
-            -- redis.pcall("ZREM", queue, job_id)
-            -- Remove job data
-            redis.pcall("DEL", job_key)
-        end  -- for each job id
-
-        number_of_jobs_removed = number_of_jobs_removed + (#job_ids)/2
-
-    until cursor == 0
-    -- It's atomic so we should have iterated through all the elements
-
-    redis.pcall("DEL", queue)
+    redis.call("DEL", queue)
+    log_notice("deleted " .. queue)
 end  -- for each queue
 
 return number_of_jobs_removed

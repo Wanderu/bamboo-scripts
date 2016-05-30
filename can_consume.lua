@@ -64,6 +64,7 @@ if dtutcnow == nil then
 end
 
 local njobs = tonumber(redis.pcall("ZCARD", kqueued))
+log_verbose("queue " .. kqueued .. " has njobs " .. tostring(njobs))
 
 if njobs ~= nil and njobs > 0 then
     return 1
