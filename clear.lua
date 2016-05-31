@@ -52,7 +52,7 @@ local jobidx
 local CLEARABLE_QUEUES = {}
 CLEARABLE_QUEUES["QUEUED"] = true
 CLEARABLE_QUEUES["SCHEDULED"] = true
-CLEARABLE_QUEUES["WORKING"] = false  -- can't pull jobs out from under the active workers
+CLEARABLE_QUEUES["WORKING"] = true  -- can't pull jobs out from under the active workers
 CLEARABLE_QUEUES["FAILED"] = true
 
 -- validation
